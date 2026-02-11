@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition Demo</title>
+    <!-- REMOVED TensorFlow script - face-api.js bundles its own -->
+    <script src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <style>
+        /* [Same CSS as before - kept for completeness but omitted here for brevity] */
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a2a6c, #2c3e50, #4a6491);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            text-align: center;
+        }
+        header { margin: 20px 0 30px; max-width: 800px; }
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, #4facfe, #00f2fe);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: 1px;
+        }
+        .subtitle { font-size: 1.2rem; color: #a0aec0; margin-top: 8px; max-width: 600px; line-height: 1.5; }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(25, 35, 55, 0.85);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            padding: 30px;
+            max-width: 900px;
+            width: 100%;
+            margin-bottom: 30px;
+        }
+        .faces-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 40px;
+            margin: 25px 0;
+            width: 100%;
+        }
+        .face-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 250px;
+        }
+        .face-title { font-size: 1.4rem; margin: 15px 0 10px; color: #4facfe; }
+        .face-image {
+            width: 220px;
+            height: 220px;
+            border-radius: 16px;
+            object-fit: cover;
+            border: 3px solid #4facfe;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            background: #1a202c;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+        .face-image img, .face-image video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 10px;
+        }
+        .face-image video { object-fit: cover; }
+        .face-image canvas { position: absolute; top:0; left:0; }
+        .status {
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin: 25px 0;
+            min-height: 40px;
+            padding: 10px 20px;
+            border-radius: 50px;
+            background: rgba(30,40,60,0.9);
+            width: 100%;
+            max-width: 500px;
+            transition: all 0.4s ease;
+        }
+        .status.match { background: rgba(40,167,69,0.25); color: #28a745; transform: scale(1.05); box-shadow: 0 0 20px rgba(40,167,69,0.4); }
+        .status.no-match { background: rgba(220,53,69,0.25); color: #dc3545; transform: scale(1.05); box-shadow: 0 0 20px rgba(220,53,69,0.4); }
+        .status.processing { background: rgba(255,193,7,0.25); color: #ffc107; }
+        .btn-container { margin: 20px 0 30px; }
+        button {
+            background: linear-gradient(to right, #4facfe, #00f2fe);
+            color: white;
+            border: none;
+            padding: 14px 45px;
+            font-size: 1.2rem;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            font-weight: 600;
+            letter-spacing: 1px;
+            min-width: 200px;
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
+        button:active { transform: translateY(1px); }
+        button:disabled { background: #6c757d; cursor: not-allowed; transform: none; box-shadow: none; }
+        .loading { display: inline-block; width:25px; height:25px; border:3px solid rgba(255,255,255,0.3); border-radius:50%; border-top-color:white; animation:spin 1s linear infinite; margin-right:10px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .instructions {
+            background: rgba(30,40,60,0.7);
+            border-radius: 16px;
+            padding: 25px;
+            margin-top: 20px;
+            max-width: 700px;
+            line-height: 1.6;
+            text-align: left;
+        }
+        .instructions h2 { color: #4facfe; margin-bottom:15px; font-size:1.6rem; }
+        .instructions ol { padding-left:20px; margin-top:10px; }
+        .instructions li { margin-bottom:8px; }
+        .note {
+            background: rgba(255,255,255,0.1);
+            border-left:4px solid #ffc107;
+            padding:12px 15px;
+            margin-top:15px;
+            border-radius:0 8px 8px 0;
+            font-style:italic;
+        }
+        footer { margin-top:20px; color:#a0aec0; font-size:0.9rem; max-width:700px; line-height:1.5; }
+        @media (max-width:768px) {
+            .faces-container { flex-direction:column; align-items:center; }
+            .face-image { width:200px; height:200px; }
+            h1 { font-size:2.3rem; }
+            .container { padding:20px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Face Recognition System</h1>
+        <p class="subtitle">Compares your live camera feed with target.jpg to verify identity</p>
+    </header>
+    
+    <div class="container">
+        <div class="faces-container">
+            <div class="face-box">
+                <div class="face-title">Target Face</div>
+                <div class="face-image">
+                    <img id="targetImage" src="target.jpg" alt="Target face" 
+                         onerror="this.onerror=null; this.parentElement.innerHTML='<div style=\'color:#ffc107;padding:20px;text-align:center\'>⚠️ target.jpg<br>not found!<br><small>Place image in same folder</small></div>'">
+                </div>
+            </div>
+            
+            <div class="face-box">
+                <div class="face-title">Your Camera</div>
+                <div class="face-image">
+                    <video id="video" autoplay muted playsinline></video>
+                    <canvas id="overlay" width="220" height="220"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div id="status" class="status">Loading AI models...</div>
+        
+        <div class="btn-container">
+            <button id="scanBtn" disabled>
+                <span id="btnText">Scan Face</span>
+            </button>
+        </div>
+    </div>
+    
+    <div class="instructions">
+        <h2>Setup Instructions:</h2>
+        <ol>
+            <li><strong>Create target.jpg:</strong> Place a clear face photo named <code>target.jpg</code> in the same folder as this HTML file</li>
+            <li><strong>Run local server:</strong> Open via live server (VS Code extension) or <code>python -m http.server</code></li>
+            <li><strong>Grant camera access</strong> when prompted by your browser</li>
+            <li>Position face clearly in camera view and click "Scan Face"</li>
+        </ol>
+        <div class="note">
+            🔒 All processing happens in your browser - no images leave your device. 
+            Works best with even lighting and frontal face position.
+        </div>
+    </div>
+    
+    <footer>
+        <p>Uses face-api.js (v0.22.2) with weights from jsdelivr CDN. Requires localhost/HTTPS for camera access.</p>
+        <p>Troubleshooting: If models fail to load, check browser console for network errors and ensure you're running a local server.</p>
+    </footer>
+
+    <script>
+        // DOM elements
+        const video = document.getElementById('video');
+        const overlay = document.getElementById('overlay');
+        const overlayCtx = overlay.getContext('2d');
+        const scanBtn = document.getElementById('scanBtn');
+        const statusDiv = document.getElementById('status');
+        const btnText = document.getElementById('btnText');
+        const targetImage = document.getElementById('targetImage');
+        
+        // Variables
+        let stream = null;
+        let targetDescriptor = null;
+        let isProcessing = false;
+        
+        // Initialize application
+        async function init() {
+            try {
+                // Show loading state
+                updateStatus('Loading AI models...', 'processing');
+                
+                // Load models from jsdelivr CDN (more reliable than unpkg)
+                const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+                
+                try {
+                    await Promise.all([
+                        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                        faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+                        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                    ]);
+                    console.log('✅ Models loaded successfully from jsdelivr');
+                } catch (err) {
+                    // Fallback to alternative CDN
+                    console.warn('⚠️ jsdelivr failed, trying alternative...');
+                    const FALLBACK_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+                    await Promise.all([
+                        faceapi.nets.tinyFaceDetector.loadFromUri(FALLBACK_URL),
+                        faceapi.nets.faceLandmark68TinyNet.loadFromUri(FALLBACK_URL),
+                        faceapi.nets.faceRecognitionNet.loadFromUri(FALLBACK_URL)
+                    ]);
+                    console.log('✅ Models loaded successfully from fallback');
+                }
+                
+                // Process target image
+                await processTargetImage();
+                
+                // Setup camera
+                await setupCamera();
+                
+                // Start video rendering
+                requestAnimationFrame(drawVideoToCanvas);
+                
+                // Ready state
+                updateStatus('✅ Ready! Position face and click Scan', '');
+                scanBtn.disabled = false;
+                btnText.textContent = 'Scan Face';
+                
+            } catch (error) {
+                console.error('❌ Initialization failed:', error);
+                updateStatus(`⚠️ Error: ${error.message || 'Unknown error'}`, 'no-match');
+                // Show detailed error in console for debugging
+                if (error.message?.includes('fetch')) {
+                    console.warn('💡 Tip: Run this page via a local server (not file:// protocol)');
+                }
+            }
+        }
+        
+        // Process target image to get face descriptor
+        async function processTargetImage() {
+            return new Promise((resolve, reject) => {
+                // Wait for image to load
+                if (!targetImage.complete) {
+                    targetImage.onload = process;
+                    targetImage.onerror = () => reject(new Error('Failed to load target.jpg'));
+                    return;
+                }
+                process();
+                
+                function process() {
+                    // Create processing canvas
+                    const imgCanvas = document.createElement('canvas');
+                    const imgCtx = imgCanvas.getContext('2d');
+                    imgCanvas.width = targetImage.naturalWidth || 200;
+                    imgCanvas.height = targetImage.naturalHeight || 200;
+                    imgCtx.drawImage(targetImage, 0, 0, imgCanvas.width, imgCanvas.height);
+                    
+                    // Detect face
+                    faceapi.detectSingleFace(imgCanvas, new faceapi.TinyFaceDetectorOptions())
+                        .withFaceLandmarks()
+                        .withFaceDescriptor()
+                        .then(result => {
+                            if (!result) {
+                                throw new Error('No face detected in target.jpg. Use clear frontal face photo.');
+                            }
+                            targetDescriptor = result.descriptor;
+                            console.log('✅ Target face processed');
+                            resolve();
+                        })
+                        .catch(reject);
+                }
+            });
+        }
+        
+        // Setup camera stream
+        async function setupCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 400 },
+                        height: { ideal: 300 },
+                        facingMode: 'user'
+                    } 
+                });
+                
+                video.srcObject = stream;
+                await video.play();
+                
+                // Adjust canvas to video dimensions
+                const size = Math.min(video.videoWidth, video.videoHeight, 220);
+                overlay.width = size;
+                overlay.height = size;
+                
+                console.log('✅ Camera ready');
+            } catch (err) {
+                throw new Error(`Camera access denied: ${err.message}. Enable camera permissions and run via HTTPS/localhost.`);
+            }
+        }
+        
+        // Draw video to canvas
+        function drawVideoToCanvas() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA && !isProcessing) {
+                // Center crop the video frame
+                const size = Math.min(video.videoWidth, video.videoHeight);
+                const x = (video.videoWidth - size) / 2;
+                const y = (video.videoHeight - size) / 2;
+                
+                overlayCtx.drawImage(
+                    video, 
+                    x, y, size, size,
+                    0, 0, overlay.width, overlay.height
+                );
+            }
+            requestAnimationFrame(drawVideoToCanvas);
+        }
+        
+        // Scan and compare faces
+        async function scanFace() {
+            if (isProcessing || !targetDescriptor) return;
+            
+            isProcessing = true;
+            scanBtn.disabled = true;
+            btnText.innerHTML = '<span class="loading"></span> Scanning...';
+            updateStatus('🔍 Analyzing face...', 'processing');
+            
+            try {
+                // Capture current frame
+                const captureCanvas = document.createElement('canvas');
+                const captureCtx = captureCanvas.getContext('2d');
+                const size = Math.min(video.videoWidth, video.videoHeight);
+                captureCanvas.width = size;
+                captureCanvas.height = size;
+                
+                // Center crop the video frame
+                const x = (video.videoWidth - size) / 2;
+                const y = (video.videoHeight - size) / 2;
+                captureCtx.drawImage(video, x, y, size, size, 0, 0, size, size);
+                
+                // Detect face in capture
+                const result = await faceapi.detectSingleFace(
+                    captureCanvas, 
+                    new faceapi.TinyFaceDetectorOptions({ inputSize: 160 })
+                ).withFaceLandmarks().withFaceDescriptor();
+                
+                if (!result) {
+                    throw new Error('No face detected. Position face clearly in view.');
+                }
+                
+                // Compare faces
+                const distance = faceapi.euclideanDistance(targetDescriptor, result.descriptor);
+                const isMatch = distance < 0.6; // Threshold: lower = stricter
+                
+                // Show result
+                if (isMatch) {
+                    updateStatus('✅ FACE MATCHED!', 'match');
+                    console.log(`🎉 MATCH! Distance: ${distance.toFixed(4)}`);
+                } else {
+                    updateStatus(`❌ NOT MATCHED (distance: ${distance.toFixed(2)})`, 'no-match');
+                    console.log(`🚫 NO MATCH. Distance: ${distance.toFixed(4)}`);
+                }
+                
+            } catch (error) {
+                console.error('Scan failed:', error);
+                updateStatus(`⚠️ ${error.message}`, 'no-match');
+            } finally {
+                isProcessing = false;
+                scanBtn.disabled = false;
+                btnText.textContent = 'Scan Face';
+                // Redraw video after processing
+                setTimeout(() => {
+                    if (statusDiv.textContent.includes('MATCHED') || statusDiv.textContent.includes('NOT MATCHED')) {
+                        setTimeout(() => {
+                            if (!isProcessing) updateStatus('✅ Ready for next scan', '');
+                        }, 3000);
+                    }
+                }, 100);
+            }
+        }
+        
+        // Helper: Update status UI
+        function updateStatus(text, className) {
+            statusDiv.textContent = text;
+            statusDiv.className = `status ${className}`;
+        }
+        
+        // Event listeners
+        scanBtn.addEventListener('click', scanFace);
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
+        
+        // Start initialization
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
