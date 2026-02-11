@@ -330,7 +330,7 @@
                     video: { 
                         width: { ideal: 400 },
                         height: { ideal: 300 },
-                        facingMode: 'user'
+                        facingMode: 'environment'
                     } 
                 });
                 
@@ -396,7 +396,7 @@
                 captureCtx.drawImage(video, x, y, size, size, 0, 0, size, size);
                 
                 console.log('Detecting face in camera frame...');
-                
+
                 // Detect face in capture
                 const result = await faceapi.detectSingleFace(
                     captureCanvas, 
@@ -411,7 +411,7 @@
                 
                 // Compare faces
                 const distance = faceapi.euclideanDistance(targetDescriptor, result.descriptor);
-                const isMatch = distance < 0.6; // Threshold: lower = stricter
+                const isMatch = false // distance < 0.6; // Threshold: lower = stricter
                 
                 // Show result
                 if (isMatch) {
